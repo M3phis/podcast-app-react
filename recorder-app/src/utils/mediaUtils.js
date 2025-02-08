@@ -145,11 +145,102 @@ export const startRecording = (recorder) => {
 };
 
 /**
- * Downloads the recorded blob as a file
- * @param {Blob} blob - The recorded data
- * @param {string} filename - The name of the file to download
+ * Initialize IndexedDB for storing recordings
+ * @returns {Promise<IDBDatabase>}
  */
-export const downloadRecording = (blob, filename) => {
+export const initializeRecordingsDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('RecordingsDB', 1);
+
+    request.onerror = () => reject(request.error);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('recordings')) {
+        db.createObjectStore('recordings', { 
+          keyPath: 'id',
+          autoIncrement: true 
+        });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+  });
+};
+
+/**
+ * Save recording to IndexedDB
+ * @param {Blob} blob - The recorded data
+ * @param {string} filename - Name of the recording
+ * @returns {Promise<number>} Promise that resolves with the recording ID
+ */
+export const saveRecording = async (blob, filename) => {
+  const db = await initializeRecordingsDB();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['recordings'], 'readwrite');
+    const store = transaction.objectStore('recordings');
+    
+    const recording = {
+      filename,
+      blob,
+      timestamp: new Date().toISOString(),
+      type: blob.type,
+      size: blob.size
+    };
+
+    const request = store.add(recording);
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+/**
+ * Get all recordings from IndexedDB
+ * @returns {Promise<Array>} Promise that resolves with array of recordings
+ */
+export const getAllRecordings = async () => {
+  const db = await initializeRecordingsDB();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['recordings'], 'readonly');
+    const store = transaction.objectStore('recordings');
+    const request = store.getAll();
+    
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+/**
+ * Delete a recording from IndexedDB
+ * @param {number} id - ID of the recording to delete
+ * @returns {Promise<void>}
+ */
+export const deleteRecording = async (id) => {
+  const db = await initializeRecordingsDB();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['recordings'], 'readwrite');
+    const store = transaction.objectStore('recordings');
+    const request = store.delete(id);
+    
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// Modify the existing downloadRecording function to optionally save to IndexedDB first
+export const downloadRecording = async (blob, filename, saveToIndexedDB = true) => {
+  if (saveToIndexedDB) {
+    try {
+      await saveRecording(blob, filename);
+    } catch (error) {
+      console.error('Error saving to IndexedDB:', error);
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   document.body.appendChild(a);

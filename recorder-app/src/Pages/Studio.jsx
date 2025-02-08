@@ -7,9 +7,13 @@ import {
   createAudioConstraints,
   createRecorder,
   startRecording,
-  downloadRecording
+  saveRecording,
+  downloadRecording,
+  getAllRecordings
 } from '../utils/mediaUtils';
 import VideoPreview from '../components/VideoPreview';
+
+
 import Controls from '../components/Controls';
 
 const Studio = () => {
@@ -105,7 +109,10 @@ const Studio = () => {
       
       // When recording stops, download the file
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      downloadRecording(recordedData, `recording-${timestamp}.webm`);
+      await saveRecording(recordedData, `recording-${timestamp}.webm`);
+      const recordings = await getAllRecordings();
+      console.log('Recordings:', recordings);
+      // downloadRecording(recordedData, `recording-${timestamp}.webm`);
     } catch (error) {
       console.error('Failed to start recording:', error);
       setIsRecording(false);
